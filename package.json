@@ -1,0 +1,20 @@
+{
+  "name": "chatwidget-studio-owl",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ChatWidget Studio with TikTok LIVE connector and editor",
+  "main": "server.js",
+  "scripts": {
+    "start": "node start.js",
+    "server": "node server.js",
+    "tunnel": "node start.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "tiktok-live-connector": "^2.0.0",
+    "youtubei.js": "^13.0.0"
+  },
+  "optionalDependencies": {
+    "cloudflared": "^0.7.0"
+  }
+}

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chat Widget Display</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..800&family=Poppins:wght@400;600;800&family=Cinzel:wght@500..800&family=Quicksand:wght@400..700&family=Rubik:wght@400..800&family=Playfair+Display:wght@500..800&display=swap" rel="stylesheet">
+<style>
+/* 
+   DISPLAY — engine render (CSS + JS) ambil langsung dari editor.html
+   oleh server saat /display dibuka, jadi tampilannya SELALU sama
+   dengan editor. Jangan salin CSS bubble ke file ini. */
+:root{--ff:Inter;--gap:10px;--fs:14px;--fw:500}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:transparent!important;overflow:hidden}
+body{display:flex;align-items:flex-end;font:13px/1.4 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+
+/*__ENGINE_CSS__*/
+
+#chat{position:relative;width:100%;max-width:560px;height:100%;padding:46px 26px 18px 10px;overflow:hidden;justify-content:flex-end}
+.msg{max-width:100%;min-width:0}
+.av{overflow:hidden;position:relative}
+.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="heat" filterUnits="userSpaceOnUse" x="-80" y="-80" width="1400" height="900"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.07" numOctaves="2" seed="4" result="n"><animate attributeName="baseFrequency" dur="5s" values="0.012 0.07;0.02 0.11;0.012 0.07" repeatCount="indefinite"/></feTurbulence><feDisplacementMap in="SourceGraphic" in2="n" scale="8" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
+<div id="chat"></div>
+<script>
+/*__ENGINE_JS__*/
+
+const chat = $('#chat');
+const us = document.head.appendChild(Object.assign(document.createElement('style'), { id: 'us' }));
+
+function applyVars() {
+  const st = document.documentElement.style;
+  st.setProperty('--ff', `"${S.font}"`);
+  st.setProperty('--gap', S.gap + 'px');
+  st.setProperty('--fs', S.fs + 'px');
+  st.setProperty('--fw', S.weight);
+  st.setProperty('--a1', S.a1); st.setProperty('--a2', S.a2);
+  st.setProperty('--bubble', S.bubble); st.setProperty('--bt', S.bt); st.setProperty('--nt', S.nt);
+  st.setProperty('--r', S.r + 'px'); st.setProperty('--bw', S.bw + 'px');
+  st.setProperty('--px', S.px + 'px'); st.setProperty('--py', S.py + 'px');
+}
+
+function setState(st) {
+  if (!st || !st.S) return;
+  Object.assign(S, st.S);
+  (st.roles || []).forEach(r => {
+    const x = roles.find(y => y.id === r.id);
+    if (x) Object.assign(x, r);
+  });
+  css = st.css || { sc: '' };
+  us.textContent = css.sc || '';
+  applyVars();
+  $$('.msg').forEach(m => apply(m));
+  fit();
+}
+
+const CANON = {
+  moderator: 'moderator', mod: 'moderator', admin: 'moderator',
+  fanclub: 'fanclub', fan: 'fanclub',
+  gifter: 'topgifter', topgifter: 'topgifter',
+  toplikes: 'toplikes', likes: 'toplikes',
+  follower: 'follower', follow: 'follower',
+  superchat: 'superchat',
+  member: 'membership', membership: 'membership',
+  subscriber: 'subscriber', subscribe: 'subscriber', sub: 'subscriber'
+};
+const canon = r => CANON[String(r).toLowerCase().replace(/[^a-z]/g, '').replace(/^(tiktok|youtube|tt|yt)/, '')];
+const KEY = {
+  tiktok:  { moderator: 'tt_mod', fanclub: 'tt_fan', topgifter: 'tt_gift', toplikes: 'tt_like', follower: 'tt_follower' },
+  youtube: { moderator: 'yt_mod', superchat: 'yt_super', membership: 'yt_mem', subscriber: 'yt_sub', toplikes: 'yt_like' }
+};
+const ORDER = ['superchat', 'topgifter', 'moderator', 'fanclub', 'membership', 'toplikes', 'subscriber', 'follower'];
+
+function pickRole(d, pf) {
+  const raw = [].concat(d.roles || [], d.role || [], d.userRole || []);
+  (d.badges || []).forEach(b => raw.push(typeof b === 'string' ? b : (b && (b.name || b.type || b.label))));
+  [['isModerator', 'moderator'], ['moderator', 'moderator'], ['is_moderator', 'moderator'],
+   ['isFanClub', 'fanclub'], ['isSubscriber', 'subscriber'], ['isTopGifter', 'topgifter'],
+   ['isMember', 'member'], ['isFollower', 'follower'], ['isSuperChat', 'superchat']
+  ].forEach(([f, r]) => { if (d[f] === true) raw.push(r); });
+  const got = new Set(raw.filter(Boolean).map(canon).filter(Boolean));
+  const maps = [KEY[pf], KEY.tiktok, KEY.youtube].filter(Boolean);
+  for (const r of ORDER) {
+    if (!got.has(r)) continue;
+    for (const m of maps) {
+      const id = m[r], ro = id && roles.find(x => x.id === id);
+      if (ro && ro.on !== false) return id;
+    }
+  }
+  return '';
+}
+
+const fit = () => trim(chat, Math.max(1, S.maxChat || 5), true);
+
+function addChat(d) {
+  if (!d) return;
+  const pf = String(d.platform || '').toLowerCase() === 'youtube' ? 'youtube' : 'tiktok';
+  const m = msg(String(d.nickname || d.username || 'Unknown'), String(d.comment || ''), pf, pickRole(d, pf));
+  if (d.avatar) {
+    const i = new Image();
+    i.alt = ''; i.onerror = () => i.remove(); i.src = d.avatar;
+    $('.av', m).appendChild(i);
+  }
+  pushMsg(chat, m, fit);   
+}
+
+const Q = []; let last = 0, timer = null;
+function pump() {
+  timer = null;
+  if (!Q.length) return;
+  const gap = Q.length > 12 ? 40 : Q.length > 5 ? 90 : 160, wait = last + gap - Date.now();
+  if (wait > 0) { timer = setTimeout(pump, wait); return; }
+  last = Date.now();
+  addChat(Q.shift());
+  if (Q.length) timer = setTimeout(pump, gap);
+}
+function enqueue(d) {
+  if (Q.length > 60) Q.splice(0, Q.length - 60);
+  Q.push(d);
+  if (!timer) pump();
+}
+
+function connect() {
+  const w = new WebSocket((location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host);
+  w.onmessage = ev => {
+    try {
+      const d = JSON.parse(ev.data);
+      if (d.type === 'state') setState(d.state);
+      else if (d.type === 'chat') enqueue(d);
+      else if (d.type === 'test_role') enqueue(d.data);
+    } catch (x) { console.error(x); }
+  };
+  w.onclose = () => setTimeout(connect, 1500);
+}
+
+applyVars();
+if (/demo/.test(location.search)) [
+  ['viewer_01', 'Halo kak, semangat live-nya!', 'tiktok', []],
+  ['mod_user', 'Jaga chat ya semua', 'tiktok', ['moderator']],
+  ['gifter_01', '💎 Mengirim Rose ×10', 'tiktok', ['gifter']],
+  ['fan_club', 'Aku fans berat kamu!', 'tiktok', ['fanclub']],
+  ['super_fan', 'Semangat terus bang!', 'youtube', ['superchat']]
+].forEach((x, i) => setTimeout(() => enqueue({ type: 'chat', nickname: x[0], comment: x[1], platform: x[2], roles: x[3] }), i * 200));
+connect();
+</script>
+</body>
+</html>
